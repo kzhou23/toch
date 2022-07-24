@@ -58,3 +58,15 @@ The output meshes will be saved under `./recon_results` by default.
 
 ### Custom Dataset
 TODO
+
+## Citation
+If you use our code, please cite:
+```bibtex
+@inproceedings{zhou2022toch,
+    title = {TOCH: Spatio-Temporal Object Correspondence to Hand for Motion Refinement},
+    author = {Zhou, Keyang and Bhatnagar, Bharat Lal and Lenssen, Jan Eric and Pons-Moll, Gerard},
+    booktitle = {European Conference on Computer Vision ({ECCV})},
+    month = {October},
+    organization = {{Springer}},
+    year = {2022},
+}
