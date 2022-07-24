@@ -1,6 +1,6 @@
+# The code is adapted from the GRAB repository by Omid Taheri.
+
 import sys
-sys.path.append('.')
-sys.path.append('..')
 import numpy as np
 import torch
 import os, glob, pickle
@@ -14,10 +14,9 @@ from tools.utils import makepath, parse_npz, params2torch, prepare_params, to_cp
 from smplx.lbs import batch_rodrigues
 
 class GRABDataSet(object):
-    def __init__(self, cfg):
-        self.cfg = cfg
-        self.grab_path = cfg['grab_path']
-        self.out_path = cfg['out_path']
+    def __init__(self, args, grab_splits):
+        self.grab_path = args.grab_path
+        self.out_path = args.out_path
         makepath(self.out_path)
 
         print('Starting data preprocessing !')
@@ -29,13 +28,13 @@ class GRABDataSet(object):
             obj_name = fn.split('.')[0]
             self.objname2id[obj_name] = i
 
-        if cfg['splits'] is None:
+        if grab_splits is None:
             self.splits = {'test': ['mug', 'wineglass', 'camera', 'binoculars', 'fryingpan', 'toothpaste'],
                             'val': ['apple', 'toothbrush', 'elephant', 'hand'],
                             'train': []}
         else:
-            assert isinstance(cfg['splits'], dict)
-            self.splits = cfg['splits']
+            assert isinstance(grab_splits, dict)
+            self.splits = grab_splits
             
         self.all_seqs = glob.glob(self.grab_path + '/*/*.npz')
 
@@ -46,7 +45,7 @@ class GRABDataSet(object):
 
         self.process_sequences()
 
-        self.data_preprocessing(cfg)
+        self.data_preprocessing(args)
 
         print('Total sequences: %d' % len(self.all_seqs))
         print('Number of sequences in each data split : train: %d , test: %d , val: %d'
@@ -71,9 +70,9 @@ class GRABDataSet(object):
                     self.splits['train'].append(object_name)
 
         
-    def data_preprocessing(self,cfg):
+    def data_preprocessing(self,args):
         # load MANO model
-        mano_path = os.path.join(cfg['model_path'], 'mano/MANO_RIGHT.pkl')
+        mano_path = os.path.join(args.smplx_path, 'mano/MANO_RIGHT.pkl')
         with open(mano_path, 'rb') as f:
             mano_model = pickle.load(f, encoding='latin1')
         
@@ -104,11 +103,11 @@ class GRABDataSet(object):
                 obj_name = seq_data.obj_name
                 n_comps  = seq_data.n_comps
 
-                ds_mask = self.downsample_frames(seq_data, rate=cfg['ds_rate'])
-                hand_contact_mask = self.filter_contact_frames(seq_data, cfg)
+                ds_mask = self.downsample_frames(seq_data, rate=args.ds_rate)
+                hand_contact_mask = self.filter_contact_frames(seq_data, args)
                 frame_mask = ds_mask & hand_contact_mask
                 #frame_mask = ds_mask
-                if cfg['hand'] == 'right':
+                if args.hand == 'right':
                     rhand_data['is_left'].append(np.zeros(frame_mask.sum()).astype(bool))
                 else:
                     rhand_data['is_left'].append(np.ones(frame_mask.sum()).astype(bool))
@@ -122,7 +121,7 @@ class GRABDataSet(object):
                 if T < 1:
                     continue # if no frame is selected continue to the next sequence
 
-                if cfg['hand'] == 'right':
+                if args.hand == 'right':
                     hand_params  = prepare_params(seq_data.rhand.params, frame_mask)
                 else:
                     hand_params  = prepare_params(seq_data.lhand.params, frame_mask)
@@ -133,14 +132,14 @@ class GRABDataSet(object):
 
                 object_data['object_id'].extend([self.objname2id[obj_name]]*T)
 
-                if cfg['hand'] == 'right':
+                if args.hand == 'right':
                     hand_mesh = os.path.join(grab_path, '..', seq_data.rhand.vtemp)
                 else:
                     hand_mesh = os.path.join(grab_path, '..', seq_data.lhand.vtemp)
                 hand_vtemp = np.array(Mesh(filename=hand_mesh).v)
 
-                if cfg['hand'] == 'right':
-                    rh_m = smplx.create(model_path=cfg['model_path'],
+                if args.hand == 'right':
+                    rh_m = smplx.create(model_path=args.smplx_path,
                                         model_type='mano',
                                         is_rhand=True,
                                         v_template=hand_vtemp,
@@ -148,7 +147,7 @@ class GRABDataSet(object):
                                         flat_hand_mean=True,
                                         batch_size=T)
                 else:
-                    rh_m = smplx.create(model_path=cfg['model_path'],
+                    rh_m = smplx.create(model_path=args.smplx_path,
                                         model_type='mano',
                                         is_rhand=False,
                                         v_template=hand_vtemp,
@@ -158,31 +157,28 @@ class GRABDataSet(object):
 
                 hand_parms = params2torch(hand_params)
                 verts_rh = to_cpu(rh_m(**hand_parms).vertices)
-                if cfg['hand'] == 'left':
+                if args.hand == 'left':
                     verts_rh[..., 0] = -verts_rh[..., 0]
                 rhand_data['verts'].append(verts_rh)
 
 
                 # perturb hand pose
-                aug_trans = 0.01
-                aug_rot = 0.05
-                aug_pca = 0.3
-                aug_t = np.random.randn(T, 3) * aug_trans
-                aug_o = np.random.randn(T, 3) * aug_rot
-                aug_p = np.random.randn(T, 24) * aug_pca
+                aug_t = np.random.randn(T, 3) * args.aug_trans
+                aug_o = np.random.randn(T, 3) * args.aug_rot
+                aug_p = np.random.randn(T, 24) * args.aug_pose
                 hand_params['global_orient'] += aug_o
                 hand_params['hand_pose'] += aug_p
                 hand_params['transl'] += aug_t
                 hand_pert_parms = params2torch(hand_params)
 
                 verts_rh_pert = to_cpu(rh_m(**hand_pert_parms).vertices)
-                if cfg['hand'] == 'left':
+                if args.hand == 'left':
                     verts_rh_pert[..., 0] = -verts_rh_pert[..., 0]
                 rhand_pert_data['verts'].append(verts_rh_pert)
 
 
                 ### for objects
-                obj_info = self.load_obj_verts(obj_name, seq_data, cfg['n_points_sample'])
+                obj_info = self.load_obj_verts(obj_name, seq_data, args.num_points)
 
                 obj_m = ObjectModel(v_template=obj_info['verts_sample'],
                                     batch_size=T,
@@ -193,7 +189,7 @@ class GRABDataSet(object):
                 verts_obj = to_cpu(obj_output.vertices)
                 vn_obj = to_cpu(obj_output.vn)
                 center_obj = to_cpu(obj_output.center)
-                if cfg['hand'] == 'left':
+                if args.hand == 'left':
                     verts_obj[..., 0] = -verts_obj[..., 0]
                     center_obj[..., 0] = -center_obj[..., 0]
                     vn_obj[..., 0] = -vn_obj[..., 0]
@@ -205,7 +201,6 @@ class GRABDataSet(object):
             object_data['center'] = np.concatenate(object_data['center'])
             rhand_data['verts'] = np.concatenate(rhand_data['verts'])
             rhand_pert_data['verts'] = np.concatenate(rhand_pert_data['verts'])
-
             
             # center all verts
             object_verts = object_data['verts']
@@ -213,7 +208,6 @@ class GRABDataSet(object):
             object_verts -= object_center
             rhand_verts = rhand_data['verts'] - object_center
             rhand_pert_verts = rhand_pert_data['verts'] - object_center
-
 
             # save data
             # rhand_verts: 778*3
@@ -227,33 +221,32 @@ class GRABDataSet(object):
             # frame_id: 1
             # is_left: 1
             np_dtype = np.dtype('(2334)f4, (3)f4, (24)f4, ({})f4, ({})f4, (3)f4, (3)f4, i4, i4, ?'.format(
-                cfg['n_points_sample']*3, cfg['n_points_sample']*3
+                args.num_points*3, args.num_points*3
             ))
             
             is_left = np.concatenate(rhand_data['is_left'])
             rhand_verts = rhand_verts.reshape(-1, 778*3)
             rhand_global_orient = np.concatenate(rhand_data['global_orient'])
             rhand_pose = np.concatenate(rhand_data['hand_pose'])
-            object_verts = object_verts.reshape(-1, cfg['n_points_sample']*3)
-            object_vn = np.concatenate(object_data['vn']).reshape(-1, cfg['n_points_sample']*3)
+            object_verts = object_verts.reshape(-1, args.num_points*3)
+            object_vn = np.concatenate(object_data['vn']).reshape(-1, args.num_points*3)
             object_global_orient = np.concatenate(object_data['global_orient'])
             object_transl = np.concatenate(object_data['transl'])
             object_id = np.array(object_data['object_id'])
             frame_id = np.concatenate(object_data['frame_id'])
 
             np_data = list(zip(rhand_verts, rhand_global_orient, rhand_pose, object_verts, object_vn, 
-                               object_global_orient, object_transl, object_id, frame_id, is_left))
+                object_global_orient, object_transl, object_id, frame_id, is_left))
             np_data = np.array(np_data, dtype=np_dtype)
-            np.save(os.path.join(self.out_path, '{}_{}.npy'.format(split, cfg['hand'])), np_data)
+            np.save(os.path.join(self.out_path, '{}_{}.npy'.format(split, args.hand)), np_data)
             
 
             rhand_pert_verts = rhand_pert_verts.reshape(-1, 778*3)
 
             np_pert_data = list(zip(rhand_pert_verts, rhand_global_orient, rhand_pose, object_verts,
-                                    object_vn, object_global_orient, object_transl, object_id, frame_id,
-                                    is_left))
+                object_vn, object_global_orient, object_transl, object_id, frame_id, is_left))
             np_pert_data = np.array(np_pert_data, dtype=np_dtype)
-            np.save(os.path.join(self.out_path, '{}_{}_pert.npy'.format(split, cfg['hand'])), np_pert_data)
+            np.save(os.path.join(self.out_path, '{}_{}_pert.npy'.format(split, args.hand)), np_pert_data)
 
             print('Processing for %s split finished' % split)
             print('Total number of frames for %s split is:%d' % (split, len(np_data)))
@@ -266,20 +259,20 @@ class GRABDataSet(object):
         mask = np.vstack((ones, *zeros)).reshape((-1,), order='F')[:num_frames]
         return mask
 
-    def filter_contact_frames(self, seq_data, cfg):
+    def filter_contact_frames(self, seq_data, args):
         '''
         left hand not in contact
         '''
         obj_contact = seq_data['contact']['object']
 
-        if cfg['hand'] == 'right':
-        # left hand not in contact
-            rh_frame_mask = ~(((obj_contact == 21) | ((obj_contact >= 26) & (obj_contact <= 40))).any(axis=1))
-            return rh_frame_mask
+        if args.hand == 'right':
+            # left hand not in contact
+            frame_mask = ~(((obj_contact == 21) | ((obj_contact >= 26) & (obj_contact <= 40))).any(axis=1))
         else:
             # right hand not in contact
-            lh_frame_mask = ~(((obj_contact == 22) | ((obj_contact >= 41) & (obj_contact <= 55))).any(axis=1))
-            return lh_frame_mask
+            frame_mask = ~(((obj_contact == 22) | ((obj_contact >= 41) & (obj_contact <= 55))).any(axis=1))
+        
+        return frame_mask
 
     def load_obj_verts(self, obj_name, seq_data, n_points_sample=2000):
         mesh_path = os.path.join(self.grab_path, '..',seq_data.object.object_mesh)
@@ -306,60 +299,57 @@ class GRABDataSet(object):
 
 
 if __name__ == '__main__':
-    grab_path = ''
-    out_path = ''
-    model_path = ''
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--grab_path', type=str)
+    parser.add_argument('--smplx_path', type=str)
+    parser.add_argument('--out_path', type=str)
+    # from 'all', 'use' , 'pass', 'lift' , 'offhand'
+    parser.add_argument('--intent', default='all', type=str)
+    # from 'left', 'right', 'both'
+    parser.add_argument('--hand', default='both', type=str)
+    # number of points sampled for each object
+    parser.add_argument('--num_points', default=8000, type=int)
+    # sequence downsample rate
+    parser.add_argument('--ds_rate', default=4, type=int)
+    # sequence minimum window size
+    parser.add_argument('--window_size', default=30, type=int)
+    # noise levels
+    parser.add_argument('--aug_trans', default=0.01, type=float)
+    parser.add_argument('--aug_rot', default=0.05, type=float)
+    parser.add_argument('--aug_pose', default=0.3, type=float)           
+    args = parser.parse_args()
 
     # split the dataset based on the objects
     grab_splits = { 'test': ['mug', 'wineglass', 'camera', 'binoculars', 'fryingpan', 'toothpaste'],
                     'val': ['apple', 'toothbrush', 'elephant', 'hand'],
-                    #'train': []
+                    'train': []
                 }
 
-    cfg = {
-
-        'intent':'all', # from 'all', 'use' , 'pass', 'lift' , 'offhand'
-
-        'hand': 'right',
-
-        # splits
-        'splits':grab_splits,
-
-        #IO path
-        'grab_path': grab_path,
-        'out_path': out_path,
-
-        # number of points samples for each object
-        'n_points_sample': 8000,
-
-        # body and hand model path
-        'model_path': model_path,
-
-        # downsample rate
-        'ds_rate': 4,
-
-        # neighbouring window size
-        'window_size': 30
-    }
-
-    cfg['hand'] = 'right'
-    GRABDataSet(cfg)
-    cfg['hand'] = 'left'
-    GRABDataSet(cfg)
+    if args.hand == 'both':
+        args.hand = 'right'
+        GRABDataSet(args, grab_splits)
+        args.hand = 'left'
+        GRABDataSet(args, grab_splits)
+        args.hand = 'both'
+    else:
+        GRABDataSet(args, grab_splits)
 
     for split in grab_splits.keys():
         split_path_right = os.path.join(out_path, '{}_right.npy'.format(split))
         split_path_left = os.path.join(out_path, '{}_left.npy'.format(split))
-        np_data_right = np.load(split_path_right)
-        np_data_left = np.load(split_path_left)
-        np_data = np.concatenate([np_data_right, np_data_left], axis=0)
-        np_data = np_data_right
-        del np_data_right, np_data_left
+        if args.hand == 'both':
+            np_data_right = np.load(split_path_right)
+            np_data_left = np.load(split_path_left)
+            np_data = np.concatenate([np_data_right, np_data_left], axis=0)
+        elif args.hand == 'right':
+            np_data = np.load(split_path_right)
+        elif args.hand == 'left':
+            np_data = np.load(split_path_left)
 
         ids_to_remove = []
         for i in range(len(np_data)):
             rhand_pc = np_data[i]['f0'].reshape(778, 3)
-            object_pc = np_data[i]['f3'].reshape(cfg['n_points_sample'], 3)
+            object_pc = np_data[i]['f3'].reshape(args.num_points, 3)
             
             circle_v_id = np.array([108, 79, 78, 121, 214, 215, 279, 239, 234, 92, 38, 122, 118, 117, 119, 120], dtype = np.int32)
             center = np.broadcast_to((rhand_pc[circle_v_id, :]).mean(axis=0, keepdims=True), object_pc.shape)
@@ -373,7 +363,7 @@ if __name__ == '__main__':
         np_data = np_data[mask]
 
         # correct frame ids
-        np_data['f8'] = np_data['f8'] // cfg['ds_rate']
+        np_data['f8'] = np_data['f8'] // args.ds_rate
 
         print('{} set: {} frames remaining'.format(split, mask.sum()))
 
@@ -386,11 +376,11 @@ if __name__ == '__main__':
         file_id = 0
         start_idx = 0
 
-        while start_idx <= len(np_data) - cfg['window_size']:
+        while start_idx <= len(np_data) - args.window_size:
             for i in range(start_idx+1, len(np_data)):
                 if (np_data[i]['f8']-1 > np_data[i-1]['f8']) or (np_data[i]['f9'] != np_data[i-1]['f9']):
                     clip_len = i - start_idx
-                    if clip_len >= cfg['window_size']:
+                    if clip_len >= args.window_size:
                         np.save(os.path.join(out_path, split, '{}.npy'.format(file_id)), np_data[start_idx:i])
                         file_id += 1
                         total_clip_len += clip_len
@@ -412,11 +402,18 @@ if __name__ == '__main__':
 
         makepath(os.path.join(out_path, '{}_pert'.format(split)))
 
-        pert_data_right = np.load(os.path.join(out_path, '{}_right_pert.npy'.format(split)))
-        pert_data_left = np.load(os.path.join(out_path, '{}_left_pert.npy'.format(split)))
-        pert_data = np.concatenate([pert_data_right, pert_data_left], axis=0)
-        pert_data = pert_data_right
-        pert_data['f8'] = pert_data['f8'] // cfg['ds_rate']
+        pert_path_right = os.path.join(out_path, '{}_right_pert.npy'.format(split))
+        pert_path_left = os.path.join(out_path, '{}_left_pert.npy'.format(split))
+        if args.hand == 'both':
+            pert_data_right = np.load(pert_path_right)
+            pert_data_left = np.load(pert_path_left)
+            pert_data = np.concatenate([pert_data_right, pert_data_left], axis=0)
+        elif args.hand == 'right':
+            pert_data = np.load(pert_path_right)
+        elif args.hand == 'left':
+            pert_data = np.load(pert_path_left)
+
+        pert_data['f8'] = pert_data['f8'] // args.ds_rate
         print('{} pert length:'.format(split), len(pert_data))
 
         unpert_clips = glob.glob(os.path.join(out_path, split, '*.npy'))

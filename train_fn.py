@@ -16,20 +16,20 @@ def weighted_mse_loss(x, y, w):
 
 
 def model_loss(ho_autoencoder, data):
-    contact_mask_gt, corr_pts_gt, corr_dist_gt = data[..., 11], data[..., 12: 15], data[..., 15]
+    corr_mask_gt, corr_pts_gt, corr_dist_gt = data[..., 11], data[..., 12: 15], data[..., 15]
     dec_cond = data[..., 16:]
     data = data[..., :11]
-    contact_mask_pred, corr_pts_pred, corr_dist_pred = ho_autoencoder(data, dec_cond)
-    output = [contact_mask_pred, corr_pts_pred, corr_dist_pred]
-    contact_mask_bool = contact_mask_gt.bool()
+    corr_mask_pred, corr_pts_pred, corr_dist_pred = ho_autoencoder(data, dec_cond)
+    output = [corr_mask_pred, corr_pts_pred, corr_dist_pred]
+    corr_mask_bool = corr_mask_gt.bool()
 
-    mask_cls_loss = bce_loss(contact_mask_pred.view(-1), contact_mask_gt.view(-1))
-    corr_pts_loss = mse_loss(corr_pts_pred[contact_mask_bool], corr_pts_gt[contact_mask_bool])
+    mask_cls_loss = bce_loss(corr_mask_pred.view(-1), corr_mask_gt.view(-1))
+    corr_pts_loss = mse_loss(corr_pts_pred[corr_mask_bool], corr_pts_gt[corr_mask_bool])
 
-    dist_weight = masked_softmax(-torch.abs(10*corr_dist_gt), contact_mask_gt, dim=2) * \
-        contact_mask_gt.sum(dim=2, keepdim=True)
-    corr_dist_loss = weighted_mse_loss(corr_dist_pred[contact_mask_bool],
-        10*corr_dist_gt[contact_mask_bool], dist_weight[contact_mask_bool])
+    dist_weight = masked_softmax(-torch.abs(10*corr_dist_gt), corr_mask_gt, dim=2) * \
+        corr_mask_gt.sum(dim=2, keepdim=True)
+    corr_dist_loss = weighted_mse_loss(corr_dist_pred[corr_mask_bool],
+        10*corr_dist_gt[corr_mask_bool], dist_weight[corr_mask_bool])
 
     return output, mask_cls_loss, corr_pts_loss, corr_dist_loss
 

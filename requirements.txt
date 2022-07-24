@@ -1,0 +1,8 @@
+chumpy
+matplotlib
+numpy
+scipy
+smplx
+torch==1.7.1
+tqdm
+trimesh
