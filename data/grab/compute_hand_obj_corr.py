@@ -1,7 +1,6 @@
 import numpy as np
 import trimesh
-import os, glob, pickle
-from trimesh.ray.ray_triangle import RayMeshIntersector
+import os, glob, pickle, argparse
 from scipy.spatial.transform import Rotation as R
 
 def seal(mesh_to_seal, rh=True):
@@ -131,7 +130,7 @@ if __name__ == '__main__':
     # normalize MANO template
     mano_template = trimesh.Trimesh(vertices=mano_model['v_template'], faces=mano_model['f'],
         process=False)
-    with open('scale_center.pkl', 'rb') as f:
+    with open('data/grab/scale_center.pkl', 'rb') as f:
         scale, center = pickle.load(f)
     mano_template.vertices = mano_template.vertices * scale + center
 

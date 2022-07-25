@@ -1,9 +1,7 @@
 # The code is adapted from the GRAB repository by Omid Taheri.
 
-import sys
 import numpy as np
-import torch
-import os, glob, pickle
+import os, glob, pickle, argparse
 import smplx
 import trimesh
 
@@ -11,7 +9,7 @@ from tqdm import tqdm
 from psbody.mesh import Mesh
 from tools.objectmodel import ObjectModel
 from tools.utils import makepath, parse_npz, params2torch, prepare_params, to_cpu, append2dict
-from smplx.lbs import batch_rodrigues
+
 
 class GRABDataSet(object):
     def __init__(self, args, grab_splits):
@@ -23,7 +21,7 @@ class GRABDataSet(object):
 
         # convert object names to ids
         self.objname2id = {}
-        obj_meshes = sorted(os.listdir(os.path.join(self.grab_path, '../tools/object_meshes/contact_meshes')))
+        obj_meshes = sorted(os.listdir(os.path.join(self.grab_path, 'tools/object_meshes/contact_meshes')))
         for i, fn in enumerate(obj_meshes):
             obj_name = fn.split('.')[0]
             self.objname2id[obj_name] = i
@@ -36,7 +34,7 @@ class GRABDataSet(object):
             assert isinstance(grab_splits, dict)
             self.splits = grab_splits
             
-        self.all_seqs = glob.glob(self.grab_path + '/*/*.npz')
+        self.all_seqs = glob.glob(os.path.join(self.grab_path, 'grab/*/*.npz'))
 
         self.split_seqs = {'test': [],
                            'val': [],
@@ -72,13 +70,13 @@ class GRABDataSet(object):
         
     def data_preprocessing(self,args):
         # load MANO model
-        mano_path = os.path.join(args.smplx_path, 'mano/MANO_RIGHT.pkl')
+        mano_path = os.path.join(args.mano_path, 'MANO_RIGHT.pkl')
         with open(mano_path, 'rb') as f:
             mano_model = pickle.load(f, encoding='latin1')
         
         # normalize MANO template
         mano_template = Mesh(v=mano_model['v_template'], f=mano_model['f'])
-        with open('scale_center.pkl', 'rb') as f:
+        with open('data/grab/scale_center.pkl', 'rb') as f:
             scale, center = pickle.load(f)
         mano_template.v = mano_template.v * scale + center
 
@@ -133,9 +131,9 @@ class GRABDataSet(object):
                 object_data['object_id'].extend([self.objname2id[obj_name]]*T)
 
                 if args.hand == 'right':
-                    hand_mesh = os.path.join(grab_path, '..', seq_data.rhand.vtemp)
+                    hand_mesh = os.path.join(args.grab_path, seq_data.rhand.vtemp)
                 else:
-                    hand_mesh = os.path.join(grab_path, '..', seq_data.lhand.vtemp)
+                    hand_mesh = os.path.join(args.grab_path, seq_data.lhand.vtemp)
                 hand_vtemp = np.array(Mesh(filename=hand_mesh).v)
 
                 if args.hand == 'right':
@@ -275,7 +273,7 @@ class GRABDataSet(object):
         return frame_mask
 
     def load_obj_verts(self, obj_name, seq_data, n_points_sample=2000):
-        mesh_path = os.path.join(self.grab_path, '..',seq_data.object.object_mesh)
+        mesh_path = os.path.join(self.grab_path, seq_data.object.object_mesh)
         if obj_name not in self.obj_info:
             obj_mesh = trimesh.load(mesh_path, process=False)
             obj_mesh.remove_degenerate_faces(height=1e-06)
@@ -302,6 +300,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--grab_path', type=str)
     parser.add_argument('--smplx_path', type=str)
+    parser.add_argument('--mano_path', type=str)
     parser.add_argument('--out_path', type=str)
     # from 'all', 'use' , 'pass', 'lift' , 'offhand'
     parser.add_argument('--intent', default='all', type=str)
@@ -335,8 +334,8 @@ if __name__ == '__main__':
         GRABDataSet(args, grab_splits)
 
     for split in grab_splits.keys():
-        split_path_right = os.path.join(out_path, '{}_right.npy'.format(split))
-        split_path_left = os.path.join(out_path, '{}_left.npy'.format(split))
+        split_path_right = os.path.join(args.out_path, '{}_right.npy'.format(split))
+        split_path_left = os.path.join(args.out_path, '{}_left.npy'.format(split))
         if args.hand == 'both':
             np_data_right = np.load(split_path_right)
             np_data_left = np.load(split_path_left)
@@ -367,7 +366,7 @@ if __name__ == '__main__':
 
         print('{} set: {} frames remaining'.format(split, mask.sum()))
 
-        makepath(os.path.join(out_path, split))
+        makepath(os.path.join(args.out_path, split))
 
         max_clip_len = 0
         min_clip_len = 100000
@@ -381,7 +380,7 @@ if __name__ == '__main__':
                 if (np_data[i]['f8']-1 > np_data[i-1]['f8']) or (np_data[i]['f9'] != np_data[i-1]['f9']):
                     clip_len = i - start_idx
                     if clip_len >= args.window_size:
-                        np.save(os.path.join(out_path, split, '{}.npy'.format(file_id)), np_data[start_idx:i])
+                        np.save(os.path.join(args.out_path, split, '{}.npy'.format(file_id)), np_data[start_idx:i])
                         file_id += 1
                         total_clip_len += clip_len
                         if clip_len > max_clip_len:
@@ -400,10 +399,10 @@ if __name__ == '__main__':
         print('Min clip length for {} set: {} frames'.format(split, min_clip_len))
 
 
-        makepath(os.path.join(out_path, '{}_pert'.format(split)))
+        makepath(os.path.join(args.out_path, '{}_pert'.format(split)))
 
-        pert_path_right = os.path.join(out_path, '{}_right_pert.npy'.format(split))
-        pert_path_left = os.path.join(out_path, '{}_left_pert.npy'.format(split))
+        pert_path_right = os.path.join(args.out_path, '{}_right_pert.npy'.format(split))
+        pert_path_left = os.path.join(args.out_path, '{}_left_pert.npy'.format(split))
         if args.hand == 'both':
             pert_data_right = np.load(pert_path_right)
             pert_data_left = np.load(pert_path_left)
@@ -416,7 +415,7 @@ if __name__ == '__main__':
         pert_data['f8'] = pert_data['f8'] // args.ds_rate
         print('{} pert length:'.format(split), len(pert_data))
 
-        unpert_clips = glob.glob(os.path.join(out_path, split, '*.npy'))
+        unpert_clips = glob.glob(os.path.join(args.out_path, split, '*.npy'))
         for c in unpert_clips:
             d = np.load(c)
             start_frame_id = d[0]['f8']
@@ -428,8 +427,5 @@ if __name__ == '__main__':
 
             assert i < len(pert_data)
 
-            np.save(os.path.join(out_path, '{}_pert'.format(split), '{}'.format(os.path.basename(c))),
+            np.save(os.path.join(args.out_path, '{}_pert'.format(split), '{}'.format(os.path.basename(c))),
                 pert_data[i:i+len(d)])
-
-        
-

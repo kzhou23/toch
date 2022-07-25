@@ -14,8 +14,6 @@ from manopth.manolayer import ManoLayer
 from dataloading import GRAB_Single_Frame
 from model import TemporalPointAE
 
-# TODO:
-# saving
 
 def seal(mesh_to_seal):
     circle_v_id = np.array([108, 79, 78, 121, 214, 215, 279, 239, 234, 92, 38, 122, 118, 117, 119, 120], dtype = np.int32)
@@ -72,7 +70,7 @@ if __name__ == '__main__':
         mano = pkl.load(f, encoding="latin-1")
         mano_mesh = Mesh(mano['v_template'], mano['f'])
         J_regressor = torch.tensor(mano['J_regressor'].todense()).float()
-    with open('../data/grab/scale_center.pkl', 'rb') as f:
+    with open('data/grab/scale_center.pkl', 'rb') as f:
         scale, center = pkl.load(f)
         mano_mesh.v = mano_mesh.v * scale + center
         mano_mesh = seal(mano_mesh)
@@ -96,7 +94,7 @@ if __name__ == '__main__':
     
     for i in range(num_frames):
         input_rhand_pc, obj_pc, obj_corr_mask, obj_corr_pts, obj_corr_dist, \
-            obj_rot, obj_transl, obj_id, obj_vn, is_left = test_set[i]
+            obj_rot, obj_transl, obj_id, obj_vn, is_left = seq[i]
         obj_corr_mask[obj_corr_dist > 0.1] = 0
         obj_mesh = Mesh(filename=id2objmesh[obj_id])
         obj_verts = np.dot(obj_mesh.v, R.from_rotvec(obj_rot).as_matrix()) + obj_transl.reshape(1, 3)
@@ -295,6 +293,6 @@ if __name__ == '__main__':
         hand_mesh = Mesh(v=hand_verts[i], f=mano_mesh.f)
         hand_mesh_input = seal(Mesh(v=input_rhand_pcs[i], f=mano['f']))
         object_mesh = Mesh(v=object_verts[i], f=obj_mesh.f)
-        hand_mesh.write_ply(os.path.join(args.out_path, 'hand_{}.ply'.format(start_frame+i)))
-        hand_mesh_input.write_ply(os.path.join(args.out_path, 'input_hand_{}.ply'.format(start_frame+i)))
-        object_mesh.write_ply(os.path.join(args.out_path, 'object_{}.ply'.format(start_frame+i)))
+        hand_mesh.write_ply(os.path.join(args.out_path, 'hand_{}.ply'.format(i)))
+        hand_mesh_input.write_ply(os.path.join(args.out_path, 'input_hand_{}.ply'.format(i)))
+        object_mesh.write_ply(os.path.join(args.out_path, 'object_{}.ply'.format(i)))

@@ -26,12 +26,13 @@ Please check the respective instructions for downloading and installation.
 2. Clone the GRAB repository and copy its subfolder:
 ```shell
 git clone https://github.com/otaheri/GRAB.git
-cp -r GRAB/tools data/grab/
+cp -r GRAB/tools toch/data/grab/
 ```
 3. Run our pre-processing code:
 ```shell
 python data/grab/preprocessing.py --grab_path $RAW_GRAB_FOLDER \
                                   --smplx_path $SMPLX_MODEL_FOLDER \
+                                  --mano_path $MANO_MODEL_FOLDER \
                                   --out_path $PROCESSED_GRAB_FOLDER
 python data/grab/compute_hand_obj_corr.py --grab_path $RAW_GRAB_FOLDER \
                                           --data_path $PROCESSED_GRAB_FOLDER \
