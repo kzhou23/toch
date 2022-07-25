@@ -1,6 +1,7 @@
 # TOCH: Spatio-Temporal Object-to-Hand Correspondence for Motion Refinement
 
-Repo for **"TOCH: Spatio-Temporal Object-to-Hand Correspondence for Motion Refinement, ECCV'22 (Poster)"**
+Repo for **"TOCH: Spatio-Temporal Object-to-Hand Correspondence for Motion Refinement, ECCV'22 (Poster)"** \
+[[Paper]](http://virtualhumans.mpi-inf.mpg.de/papers/zhou22toch/toch.pdf) [[Project Page]](http://virtualhumans.mpi-inf.mpg.de/toch)
 
 ## Environment
 We recommend running the code in conda environment:
@@ -16,6 +17,7 @@ pip install -r requirements.txt
 We additionally require the following libraries：
 - [MPI-IS Mesh Processing Library](https://github.com/MPI-IS/mesh)
 - [Manopth layer for PyTorch](https://github.com/hassony2/manopth)
+
 Please check the respective instructions for downloading and installation.
 
 ## Data Preparation
