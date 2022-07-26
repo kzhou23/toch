@@ -14,13 +14,11 @@ def masked_softmax(x, m, dim, tau=1):
 def weighted_mse_loss(x, y, w):
     return (w.view(-1)*((x-y).view(-1))**2).mean()
 
-
 def model_loss(ho_autoencoder, data):
     corr_mask_gt, corr_pts_gt, corr_dist_gt = data[..., 11], data[..., 12: 15], data[..., 15]
     dec_cond = data[..., 16:]
     data = data[..., :11]
     corr_mask_pred, corr_pts_pred, corr_dist_pred = ho_autoencoder(data, dec_cond)
-    output = [corr_mask_pred, corr_pts_pred, corr_dist_pred]
     corr_mask_bool = corr_mask_gt.bool()
 
     mask_cls_loss = bce_loss(corr_mask_pred.view(-1), corr_mask_gt.view(-1))
@@ -31,13 +29,13 @@ def model_loss(ho_autoencoder, data):
     corr_dist_loss = weighted_mse_loss(corr_dist_pred[corr_mask_bool],
         10*corr_dist_gt[corr_mask_bool], dist_weight[corr_mask_bool])
 
-    return output, mask_cls_loss, corr_pts_loss, corr_dist_loss
+    return mask_cls_loss, corr_pts_loss, corr_dist_loss
 
 
 def train_fn_iter(ho_autoencoder, data, opt, epoch=None):
     opt.zero_grad()
 
-    output, mask_cls_loss, corr_pts_loss, corr_dist_loss = model_loss(ho_autoencoder, data)
+    mask_cls_loss, corr_pts_loss, corr_dist_loss = model_loss(ho_autoencoder, data)
 
     loss = mask_cls_loss + corr_pts_loss*20 + corr_dist_loss*5
     loss.backward()
@@ -48,7 +46,7 @@ def train_fn_iter(ho_autoencoder, data, opt, epoch=None):
 
 def eval_fn_iter(ho_autoencoder, data):
     with torch.no_grad():
-        _, mask_cls_loss, corr_pts_loss, corr_dist_loss = model_loss(ho_autoencoder, data)
+        mask_cls_loss, corr_pts_loss, corr_dist_loss = model_loss(ho_autoencoder, data)
     
     return mask_cls_loss.item(), corr_pts_loss.item(), corr_dist_loss.item()
 
