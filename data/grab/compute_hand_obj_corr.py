@@ -1,6 +1,8 @@
 import numpy as np
 import trimesh
 import os, glob, pickle, argparse
+from multiprocessing import Pool
+from itertools import repeat
 from scipy.spatial.transform import Rotation as R
 
 def seal(mesh_to_seal, rh=True):
@@ -29,7 +31,9 @@ def get_object_mesh(d, id2objmesh):
         object_mesh.faces = object_mesh.faces[..., [2, 1, 0]]    
     return object_mesh    
 
-def compute_corr(d, mano_template, id2objmesh):
+def compute_corr(c, mano_template, id2objmesh):
+    d = np.load(c)
+            
     mano_template_sealed = seal(mano_template)
     num_points = d[0]['f3'].shape[0] // 3
     np_dtype = np.dtype('(2334)f4, (3)f4, (24)f4, ({})f4, ({})f4, (3)f4, (3)f4, i4, i4, ({})?, ({})f4, ({})f4, ?'.format(
@@ -111,16 +115,20 @@ def compute_corr(d, mano_template, id2objmesh):
     np_data = list(zip(d['f0'], d['f1'], d['f2'], d['f3'], d['f4'], d['f5'], d['f6'],
         d['f7'], d['f8'], obj_corr_mask, obj_corr_dist, obj_corr_pts, d['f9']))
     np_data = np.array(np_data, dtype=np_dtype)
-    return np_data
+    np.save(c, np_data)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--grab_path', type='str')
+    parser.add_argument('--grab_path', type=str)
     # preprocessed sequences
-    parser.add_argument('--data_path', type='str')
-    parser.add_argument('--mano_path', type='str')
+    parser.add_argument('--data_path', type=str)
+    parser.add_argument('--mano_path', type=str)
+    parser.add_argument('--num_proc', default=1, type=int)
     args = parser.parse_args()
+
+    # create process pool
+    pool = Pool(args.num_proc)
 
     # load MANO model
     mano_path = os.path.join(args.mano_path, 'MANO_RIGHT.pkl')
@@ -146,8 +154,5 @@ if __name__ == '__main__':
         num_clips = len(clips)
         print('Start processing {} split: {} clips found!'.format(split, num_clips))
 
-        for i, c in enumerate(clips):
-            d = np.load(c)
-            res = compute_corr(d, mano_template, id2objmesh)
-            np.save(c, res)
+        pool.starmap(compute_corr, zip(clips, repeat(mano_template), repeat(id2objmesh)))
 

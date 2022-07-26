@@ -36,7 +36,8 @@ python data/grab/preprocessing.py --grab_path $RAW_GRAB_FOLDER \
                                   --out_path $PROCESSED_GRAB_FOLDER
 python data/grab/compute_hand_obj_corr.py --grab_path $RAW_GRAB_FOLDER \
                                           --data_path $PROCESSED_GRAB_FOLDER \
-                                          --mano_path $MANO_MODEL_FOLDER
+                                          --mano_path $MANO_MODEL_FOLDER \
+                                          --num_proc 50
 ```
 
 ### Custom Dataset

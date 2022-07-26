@@ -105,19 +105,20 @@ class GRABDataSet(object):
                 hand_contact_mask = self.filter_contact_frames(seq_data, args)
                 frame_mask = ds_mask & hand_contact_mask
                 #frame_mask = ds_mask
-                if args.hand == 'right':
-                    rhand_data['is_left'].append(np.zeros(frame_mask.sum()).astype(bool))
-                else:
-                    rhand_data['is_left'].append(np.ones(frame_mask.sum()).astype(bool))
-
-                frame_ids = np.arange(starting_frame_id, starting_frame_id+int(seq_data.n_frames))[frame_mask]
-                object_data['frame_id'].append(frame_ids)
-                starting_frame_id += int(seq_data.n_frames) + 100
 
                 # total selectd frames
                 T = frame_mask.sum()
                 if T < 1:
                     continue # if no frame is selected continue to the next sequence
+
+                if args.hand == 'right':
+                    rhand_data['is_left'].append(np.zeros(T).astype(bool))
+                else:
+                    rhand_data['is_left'].append(np.ones(T).astype(bool))
+
+                frame_ids = np.arange(starting_frame_id, starting_frame_id+T)
+                object_data['frame_id'].append(frame_ids)
+                starting_frame_id += int(seq_data.n_frames) + 100
 
                 if args.hand == 'right':
                     hand_params  = prepare_params(seq_data.rhand.params, frame_mask)
@@ -238,7 +239,6 @@ class GRABDataSet(object):
             np_data = np.array(np_data, dtype=np_dtype)
             np.save(os.path.join(self.out_path, '{}_{}.npy'.format(split, args.hand)), np_data)
             
-
             rhand_pert_verts = rhand_pert_verts.reshape(-1, 778*3)
 
             np_pert_data = list(zip(rhand_pert_verts, rhand_global_orient, rhand_pose, object_verts,
@@ -340,6 +340,7 @@ if __name__ == '__main__':
             np_data_right = np.load(split_path_right)
             np_data_left = np.load(split_path_left)
             np_data = np.concatenate([np_data_right, np_data_left], axis=0)
+            del np_data_right, np_data_left
         elif args.hand == 'right':
             np_data = np.load(split_path_right)
         elif args.hand == 'left':
@@ -360,9 +361,6 @@ if __name__ == '__main__':
         mask = np.ones(len(np_data)).astype(bool)
         mask[ids_to_remove] = 0
         np_data = np_data[mask]
-
-        # correct frame ids
-        np_data['f8'] = np_data['f8'] // args.ds_rate
 
         print('{} set: {} frames remaining'.format(split, mask.sum()))
 
@@ -397,7 +395,7 @@ if __name__ == '__main__':
         print('Mean clip length for {} set: {} frames'.format(split, total_clip_len // file_id))
         print('Max clip length for {} set: {} frames'.format(split, max_clip_len))
         print('Min clip length for {} set: {} frames'.format(split, min_clip_len))
-
+        del np_data
 
         makepath(os.path.join(args.out_path, '{}_pert'.format(split)))
 
@@ -407,6 +405,7 @@ if __name__ == '__main__':
             pert_data_right = np.load(pert_path_right)
             pert_data_left = np.load(pert_path_left)
             pert_data = np.concatenate([pert_data_right, pert_data_left], axis=0)
+            del pert_data_right, pert_data_left
         elif args.hand == 'right':
             pert_data = np.load(pert_path_right)
         elif args.hand == 'left':
@@ -415,17 +414,17 @@ if __name__ == '__main__':
         pert_data['f8'] = pert_data['f8'] // args.ds_rate
         print('{} pert length:'.format(split), len(pert_data))
 
-        unpert_clips = glob.glob(os.path.join(args.out_path, split, '*.npy'))
+        unpert_clips = sorted(glob.glob(os.path.join(args.out_path, split, '*.npy')))
+        start_idx = 0
         for c in unpert_clips:
             d = np.load(c)
             start_frame_id = d[0]['f8']
             start_frame_hand = d[0]['f9']
             
-            for i in range(len(pert_data)):
+            for i in range(start_idx, len(pert_data)):
                 if pert_data[i]['f8'] == start_frame_id and pert_data[i]['f9'] == start_frame_hand:
+                    start_idx = i+1
                     break
-
-            assert i < len(pert_data)
 
             np.save(os.path.join(args.out_path, '{}_pert'.format(split), '{}'.format(os.path.basename(c))),
                 pert_data[i:i+len(d)])
