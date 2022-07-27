@@ -14,7 +14,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_epoch', default=400, type=int)
     parser.add_argument('--lr', default=8e-4, type=float)
     parser.add_argument('--weight_decay', default=1e-6, type=float)
-    parser.add_argument('--num_gpu', 1, type=int)
+    parser.add_argument('--num_gpu', default=1, type=int)
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--latent_size', default=64, type=int)
     parser.add_argument('--window_size', default=30, type=int)
