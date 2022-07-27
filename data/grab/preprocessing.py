@@ -118,7 +118,7 @@ class GRABDataSet(object):
 
                 frame_ids = np.arange(starting_frame_id, starting_frame_id+T)
                 object_data['frame_id'].append(frame_ids)
-                starting_frame_id += int(seq_data.n_frames) + 100
+                starting_frame_id += T + 10
 
                 if args.hand == 'right':
                     hand_params  = prepare_params(seq_data.rhand.params, frame_mask)
@@ -133,7 +133,7 @@ class GRABDataSet(object):
 
                 if args.hand == 'right':
                     hand_mesh = os.path.join(args.grab_path, seq_data.rhand.vtemp)
-                else:
+                elif args.hand == 'left':
                     hand_mesh = os.path.join(args.grab_path, seq_data.lhand.vtemp)
                 hand_vtemp = np.array(Mesh(filename=hand_mesh).v)
 
@@ -145,7 +145,7 @@ class GRABDataSet(object):
                                         num_pca_comps=n_comps,
                                         flat_hand_mean=True,
                                         batch_size=T)
-                else:
+                elif args.hand == 'left':
                     rh_m = smplx.create(model_path=args.smplx_path,
                                         model_type='mano',
                                         is_rhand=False,
@@ -230,7 +230,7 @@ class GRABDataSet(object):
             object_verts = object_verts.reshape(-1, args.num_points*3)
             object_vn = np.concatenate(object_data['vn']).reshape(-1, args.num_points*3)
             object_global_orient = np.concatenate(object_data['global_orient'])
-            object_transl = np.concatenate(object_data['transl'])
+            object_transl = np.concatenate(object_data['transl']) - object_center.squeeze(1)
             object_id = np.array(object_data['object_id'])
             frame_id = np.concatenate(object_data['frame_id'])
 
@@ -423,7 +423,7 @@ if __name__ == '__main__':
             
             for i in range(start_idx, len(pert_data)):
                 if pert_data[i]['f8'] == start_frame_id and pert_data[i]['f9'] == start_frame_hand:
-                    start_idx = i+1
+                    start_idx = i+len(d)
                     break
 
             np.save(os.path.join(args.out_path, '{}_pert'.format(split), '{}'.format(os.path.basename(c))),
