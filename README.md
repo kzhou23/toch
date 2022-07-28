@@ -64,7 +64,6 @@ The output meshes will be saved under `./recon_results` by default.
 TODO
 
 ## Citation
-If you use our code, please cite:
 ```bibtex
 @inproceedings{zhou2022toch,
     title = {TOCH: Spatio-Temporal Object Correspondence to Hand for Motion Refinement},

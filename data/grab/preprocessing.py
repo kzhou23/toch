@@ -259,7 +259,7 @@ class GRABDataSet(object):
 
     def filter_contact_frames(self, seq_data, args):
         '''
-        left hand not in contact
+        left/right hand not in contact
         '''
         obj_contact = seq_data['contact']['object']
 
