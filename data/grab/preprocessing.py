@@ -411,7 +411,6 @@ if __name__ == '__main__':
         elif args.hand == 'left':
             pert_data = np.load(pert_path_left)
 
-        pert_data['f8'] = pert_data['f8'] // args.ds_rate
         print('{} pert length:'.format(split), len(pert_data))
 
         unpert_clips = sorted(glob.glob(os.path.join(args.out_path, split, '*.npy')))
