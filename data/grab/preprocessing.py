@@ -413,7 +413,8 @@ if __name__ == '__main__':
 
         print('{} pert length:'.format(split), len(pert_data))
 
-        unpert_clips = sorted(glob.glob(os.path.join(args.out_path, split, '*.npy')))
+        unpert_clips = sorted(glob.glob(os.path.join(args.out_path, split, '*.npy')),
+            key=lambda fn: int(os.path.basename(fn).split('.')[0]))
         start_idx = 0
         for c in unpert_clips:
             d = np.load(c)
