@@ -69,7 +69,7 @@ def train_model(ho_autoencoder, train_loader, vald_loader, opt, device, args):
         train_iters = len(train_loader)
         for i, data in enumerate(train_loader):
             data = data.to(device)
-            losses = train_fn_iter(ho_autoencoder, data, opt, epoch)
+            losses = train_fn_iter(ho_autoencoder, data, opt)
             train_loss_dict['mask_cls_loss'] += losses[0]
             train_loss_dict['corr_pts_loss'] += losses[1]
             train_loss_dict['corr_dist_loss'] += losses[2]
