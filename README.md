@@ -26,7 +26,8 @@ Please check the respective instructions for downloading and installation.
 2. Clone the GRAB repository and copy its subfolder:
 ```shell
 git clone https://github.com/otaheri/GRAB.git
-cp -r GRAB/tools toch/data/grab/
+shopt -s extglob
+cp GRAB/tools/!(objectmodel.py) toch/data/grab/tools/
 ```
 3. Run our pre-processing code:
 ```shell
